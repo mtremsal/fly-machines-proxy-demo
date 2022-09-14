@@ -37,15 +37,37 @@ Frankly, this all seems a bit too good to be true. This project explores how wel
 1. We run a stateful workload with requirements for low-latency, high-volume interactions (e.g. a game server or the [replidraw](https://github.com/rocicorp/replidraw) Figma-like demo app). This is precisely the kind of use case identified as [best-in-class for edge services](https://blog.cloudflare.com/introducing-workers-durable-objects/).
 2. We limit our infrastructure expertise to that of a fairly mediocre engineer, yours truly, without access to a full team of SREs.
 
-## Design Goals
+## Solution
 
-## Potential Solution
+Our solution has two parts:
+
+* A `lobby` that lists available gameservers and lets users join them or start a new one in a predefined region.
+* A `gameserver` that accepts connections from many concurrent users, each one getting their own websocket. The `gameserver` serializes and synchronizes everyone's inputs and displays back the resulting authoritative state in real-time.
+
+We rely on Elixir [`Phoenix`](https://github.com/phoenixframework/phoenix) as a web server, with the following setup:
+
+* The lobby page is a simple LiveView that lives at `/`. 
+* Each gameserver is a static page running at `/game/<instance>` where `instance` is the instance id of the Fly Machine that hosts the game.
+* The lobby doesn't keep track of the state and IPs of the gameservers. It only knows about their `instance` id.
+* When a user joins a gameserver, they attempt to establish a websocket connection to the lobby that is seamlessly rerouted to a gameserver by adding the "Fly-Replay Header". We rely on the [`Plug`](https://github.com/elixir-plug/plug) library for adding the header when users reach the `/game/` route.
+* We share the same codebase for the `lobby` and `webserver` and deploy it in two ways: a regular fly app available to the internet serves the lobby route, while a set of 3 fly machines (pre-created, with fixed instance ids) act as gameservers.
+
+If at all possible, we take some precautions to keep the demo simple for non-Elixir folks:
+
+* We don't leverage [Channels](https://hexdocs.pm/phoenix/channels.html) to avoid obfuscating how websockets work.
+* We don't turn the `/game/` route into a LiveView to avoid the novel mechanism where the page first loads with a `GET` then upgrades to a websocket connection.
 
 ## Findings and Sharp Edges
 
-For the most part, this was surprisingly straightforward to setup. In particular, working with full VMs at the edge provides a lot of flexibility in terms of architecture decisions, such as letting me run whatever runtime and library I'm familiar with. Relying on the Fly-Replay Header also removed the need to run my own proxy or a service mesh.
+For the most part, this was surprisingly straightforward to setup. In particular, working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting me run whatever runtime and library I'm familiar with. We didn't have to punch holes through firewalls and security groups to get instances to talk to each other. Relying on the Fly-Replay Header removed the need to run my own proxy or a service mesh. Getting all users on a single gameserver to share a full VM really makes the demo sing.
 
-While I didn't cut myself on them, keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
+While we didn't run into them, keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
+
+## Future improvements
+
+The demo currently showcases a simple chat for the real-time collaboration use case. A quick improvement would be to upgrade to a real-time graphics editor or a multiplayer mini-game that would synchronize hundreds of updates per second for each user.
+
+This demo doesn't currently demonstrate how machines scale to zero and boot fast. Ideally, unusued gameservers would shut down after n seconds. The lobby would list available regions (1 machine per region to keep things simple) rather than instance ids. The lobby would attempt to start a gameserver before a user joins it and cache the instance id locally. 
 
 ## References
 
