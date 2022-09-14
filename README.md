@@ -34,8 +34,10 @@ On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provi
 
 This all seems a bit too good to be true, so **this project explores how well these claims hold in practice, and where sharp edges remain**. To avoid sloppy comparisons, we take two precautions: 
 
-1. We run a workload with requirements for low-latency, high-volume concurrent interactions (e.g. a chat service, a game server or the [replidraw](https://github.com/rocicorp/replidraw) Figma-like demo app). These are precisely use cases identified as [best-in-class for edge services](https://blog.cloudflare.com/introducing-workers-durable-objects/).
+1. We run a workload with requirements for low-latency, high-volume concurrent interactions (e.g. a chat service, a game server, or the [replidraw](https://github.com/rocicorp/replidraw) Figma-like demo app).
 2. We limit our infrastructure expertise to that of a fairly mediocre engineer, yours truly, without access to a team of talented SREs.
+
+With stringent requirements for low-latency, high concurrency, and strong consistency, the obvious benchmark is likely built on top of a CDN's edge offerings, with something like [Cloudflare's Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across executions. In fact, their release announcement specifically called out these use cases as [best-in-class for a CDN's edge services](https://blog.cloudflare.com/introducing-workers-durable-objects/). Let's now see what an ADN-based alternative could look like.
 
 ## Fly-powered Demo
 
@@ -52,11 +54,11 @@ Our solution has two parts:
 
 The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it in two ways: a regular stateless fly app available to the internet serves the lobby route, while a set of 3 fly machines are pre-created (i.e. with fixed instance ids) to act as gameservers. Machines are closed off from the public internet by default; all sessions will initially route to the regular fly app that acts solely as lobby.
 
-**TODO** Insert simple excalidraw architecture diagram showing 2 public lobbies and 3 "private" gameservers
+**TODO** Insert simple Excalidraw architecture diagram showing 2 public lobbies and 3 "private" gameservers
 
 Any web server, such as Caddy, Deno's integrated server, or anything would work here. We run [`Phoenix`](https://github.com/phoenixframework/phoenix) because LiveViews (real-time server-rendered pages) let us minimize the amount of frontend code we write to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. It doesn't keep track of the state and IPs of the gameservers; it only knows about their `instance` ids. Each `gameserver` is a LiveView running at `/gameserver/<instance>` where `instance` is the id of the Fly Machine that hosts it.
 
-**TODO** Insert simple excalidraw networking diagram showing requests heading to Fly's edge and being rerouted to the selected instance by Fly's proxy
+**TODO** Insert simple Excalidraw networking diagram showing requests heading to Fly's edge and being rerouted to the selected instance by Fly's proxy
 
 When a user joins a gameserver from the lobby, they attempt to `GET` the page at `/gameserver/<instance>` and the lobby automatically inserts the "Fly-Replay Header" to seamlessly redirect the connection to that specific instance. We rely on the [`Plug`](https://github.com/elixir-plug/plug) library for consistently adding the header on calls to the `/gameserver/` route.
 
@@ -66,7 +68,13 @@ Besides loading the page itself, all users connected to a given gameserver open 
 
 ## Findings and Sharp Edges
 
-For the most part, this was surprisingly straightforward to setup. In particular, working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. We didn't have to punch holes through firewalls and security groups to get instances to talk to each other. Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh. Getting all users on a single gameserver to share a full VM buys us low-latency and high-volume updates.
+For the most part, this was surprisingly straightforward:
+
+* [vs CDN] Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
+* [vs CDN & FaaS] Working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
+* [vs CDN & FaaS] We were able to test our code locally and iterate quickly, without having to push it to a serverless infra each time.
+* [vs FaaS & PaaS & IaaS] We didn't have to punch holes through firewalls and security groups to get regions to talk to each other. 
+* [vs PaaS & IaaS] Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh.
 
 While we didn't run into them, let's keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
 
@@ -82,7 +90,7 @@ While Machines are private by default, the demo still operates lobbies and games
 
 ### VM Orchestration
 
-The demo doesn't currently demonstrate how Machines scale to zero and boot fast. In fact, everything that we're currently doing could be achieved with a regular Fly app, without manually provisioning low-level Machines. A simple improvement would be to shut down unusued gameservers (without any active websocket connection) after a few seconds. The lobby would list available regions (1 machine per region) rather than instance ids. It would start a gameserver before the first user joins it and cache its instance id locally. Note that the lobby remains stateless: if we attempt to start an already running gameserver, we can just ignore the error, cache its instance id, and move on.
+The demo doesn't currently demonstrate how Machines scale to zero and boot fast. In fact, everything that we're currently doing could be achieved with a regular Fly app, without manually provisioning low-level Machines. A simple improvement would be to shut down empty gameservers (without any active websocket connection) after a few seconds. The lobby would list available regions (1 machine per region) rather than instance ids. It would start a gameserver before the first user joins it and cache its instance id locally. Note that the lobby remains stateless: if we attempt to start an already running gameserver, we can just ignore the error, cache its instance id, and move on.
 
 ## References
 
@@ -90,4 +98,4 @@ The demo doesn't currently demonstrate how Machines scale to zero and boot fast.
 
 **[Cloudflare docs and guides]** Reference for [Workers](https://developers.cloudflare.com/workers/), [websockets](https://developers.cloudflare.com/workers/learning/using-websockets/) and [durable objects](https://developers.cloudflare.com/workers/learning/using-durable-objects/).
 
-**[Relevant demo apps]** [Workers chat demo](https://github.com/cloudflare/workers-chat-demo), "written on Cloudflare Workers utilizing Durable Objects to implement real-time chat with stored history". [Replidraw](https://github.com/rocicorp/replidraw), a demo app for replicache that simulates "a tiny Figma-like multiplayer graphics editor".
+**[Relevant demo apps]** [Workers chat demo](https://github.com/cloudflare/workers-chat-demo), "written on Cloudflare Workers utilizing Durable Objects to implement real-time chat with stored history". [Replidraw](https://github.com/rocicorp/replidraw), a demo app for Replicache that simulates "a tiny Figma-like multiplayer graphics editor".
