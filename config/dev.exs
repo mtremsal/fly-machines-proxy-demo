@@ -16,7 +16,8 @@ config :fly_machines_demo, FlyMachinesDemoWeb.Endpoint,
   secret_key_base: "nUQLKxMAtfuuX2InDow66BXZWegDp+I7S773KzWjDbDdl/6Vmv/Em1u8qhpN4CA4",
   watchers: [
     # Start the esbuild watcher by calling Esbuild.install_and_run(:default, args)
-    esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]}
+    # esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
   ]
 
 # ## SSL Support
