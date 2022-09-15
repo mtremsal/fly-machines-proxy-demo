@@ -1,43 +1,34 @@
 # fly-machines-proxy-demo
 A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly Machines and the Fly-Replay Header
 
-## Problem
+## A Common Problem
 
-When we pick a compute offering on which to build a platform, we effectively weigh a set of difficult tradeoffs:
+There's a class of use cases that share similar requirements despite looking quite different at first glance:
 
-### Content Delivery Network (CDN)
+* A chat room linearizes and displays concurrent messages between tens of thousands of users.
+* A gameserver computes an authoritative state from the inputs of players and the internal logic of its world.
+* A collaborative graphics editor syncs high-frequency changes to the positions, colors, etc. of its shapes.
 
-If I want to minimize latency for my users, I can leverage edge services from a CDN (e.g. [Cloudflare Workers](https://developers.cloudflare.com/workers/)) or a serverless deployment platform (e.g. [Netlify Edge Functions](https://www.netlify.com/products/#netlify-edge-functions)) that has dozens of points of presence
+In all cases:
 
-... but now I'm married to a specific vendor and its peculiar limitations, especially when it comes to storing data (e.g. [Cloudflare KV store](https://developers.cloudflare.com/workers/learning/how-kv-works/) is eventually consistent) and synchronizing state ([Cloudflare Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects/) are strongly consistent, but each one is isolated).
+1. **Low-latency** for users anywhere in the world is essential to compelling user experience, implying a deployment across tens of regions. 
+2. **Performant and scalable** compute is needed to process a high volume of concurrent inputs.
+3. The service requires **strong consistency** to resolve inputs into a single source of truth before displaying it back to users.
 
-### Functions / Platform as a Service (FaaS / PaaS)
+Historically, these requirements have often resulted in difficult tradeoffs: _global, performant, strongly consistent -- pick 2_.
 
-If I want to remain cloud vendor-agnostic, leverage varied storage options, and still limit operational overhead, I can look at serverless compute options for containers (e.g. [AWS Fargate](https://aws.amazon.com/fargate/)) and functions (e.g. [AWS Lambda](https://aws.amazon.com/lambda/))
+A potential approach could be to build such a service on top of a CDN's edge offerings. Maybe something like [Cloudflare Workers](https://developers.cloudflare.com/workers/) for globally distributed compute, connections over [WebSockets](https://developers.cloudflare.com/workers/runtime-apis/websockets/) for real-time low-latency communications, and with [Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across parallel executions. In fact, the [release announcement](https://blog.cloudflare.com/introducing-workers-durable-objects/) for durable objects specifically calls these use cases as the intended target for their edge services. 
 
-... but now I'm far from my users and I'm trying to get isolated regions to communicate over an abstract network layer that fights me.
+Still, for an average engineer such as yours truly, this isn't exactly a walk in the park. I have to learn the specific APIs and idiosyncrasies of a given vendor. I can't easily test my code locally because a lot of the complexity comes from the interplay of the various serverless offerings. I'm strongly nudged towards the javascript / typescript / Wasm ecosystem rather than my runtime or framework of choice.
 
-### Infrastructure as a Service (IaaS)
+On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provides an interesting alternative:
 
-If I want to maximize performance per dollar and keep control over the network, I could run VMs from a public cloud provider (e.g. [AWS EC2](https://aws.amazon.com/ec2/)) or on dedicated hardware (e.g. [Vultr Cloud Instance](https://www.vultr.com/products/optimized-cloud-compute/))
-
-... but now I can't scale down to zero because traditional VMs are too slow to boot on-demand. (also, multi-region networking remains hard).
-
-### Application Delivery Network (ADN)
-
-On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provides an interesting alternative that ignores the above trade-offs entirely:
-
-* [Firecracker microVMs](https://fly.io/blog/sandboxing-and-workload-isolation/) provide great workload isolation and quick boot times.
+* [Firecracker microVMs](https://fly.io/blog/sandboxing-and-workload-isolation/) provide great workload isolation, quick boot times, and performant compute.
 * [Fly Machines](https://fly.io/docs/reference/machines/) offer an API to manually orchestrate VMs and the ability to scale down to zero.
-* The [WireGuard-backed Anycast network](https://fly.io/blog/ipv6-wireguard-peering/) connect instances across regions on a mesh VLAN.
+* The [WireGuard-backed Anycast network](https://fly.io/blog/ipv6-wireguard-peering/) connect all instances across regions on a mesh VLAN.
 * The [Fly-Replay Header](https://fly.io/docs/reference/fly-replay/) dynamically configures Fly's built-in proxy to route network requests.
 
-This all seems a bit too good to be true, so **this project explores how well these claims hold in practice, and where sharp edges remain**. To avoid sloppy comparisons, we take two precautions: 
-
-1. We run a workload with requirements for low-latency, high-volume concurrent interactions (e.g. a chat service, a game server, or the [replidraw](https://github.com/rocicorp/replidraw) Figma-like demo app).
-2. We limit our infrastructure expertise to that of a fairly mediocre engineer, yours truly, without access to a team of talented SREs.
-
-With stringent requirements for low-latency, high concurrency, and strong consistency, the obvious benchmark is likely built on top of a CDN's edge offerings, with something like [Cloudflare's Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across executions. In fact, their release announcement specifically called out these use cases as [best-in-class for a CDN's edge services](https://blog.cloudflare.com/introducing-workers-durable-objects/). Let's now see what an ADN-based alternative could look like.
+This all seems a bit too good to be true, so **this project explores how well these claims hold in practice, and where sharp edges remain**.
 
 ## Fly-powered Demo
 
@@ -56,7 +47,7 @@ The `gameserver` serializes and synchronizes everyone's inputs and displays the 
 
 **TODO** Insert simple Excalidraw architecture diagram showing 2 public lobbies and 3 "private" gameservers
 
-Any web server, such as Caddy, Deno's integrated server, or anything would work here. We run [`Phoenix`](https://github.com/phoenixframework/phoenix) because LiveViews (real-time server-rendered pages) let us minimize the amount of frontend code we write to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. It doesn't keep track of the state and IPs of the gameservers; it only knows about their `instance` ids. Each `gameserver` is a LiveView running at `/gameserver/<instance>` where `instance` is the id of the Fly Machine that hosts it.
+We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of frontend code we write to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. It doesn't keep track of the state and IPs of the gameservers; it only knows about their `instance` ids. Each `gameserver` is a LiveView running at `/gameserver/<instance>` where `instance` is the id of the Fly Machine that hosts it.
 
 **TODO** Insert simple Excalidraw networking diagram showing requests heading to Fly's edge and being rerouted to the selected instance by Fly's proxy
 
@@ -70,11 +61,11 @@ Besides loading the page itself, all users connected to a given gameserver open 
 
 For the most part, this was surprisingly straightforward:
 
-* [vs CDN] Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
-* [vs CDN & FaaS] Working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
-* [vs CDN & FaaS] We were able to test our code locally and iterate quickly, without having to push it to a serverless infra each time.
-* [vs FaaS & PaaS & IaaS] We didn't have to punch holes through firewalls and security groups to get regions to talk to each other. 
-* [vs PaaS & IaaS] Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh.
+* Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
+* Working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
+* We were able to test our code locally and iterate quickly, without having to push it to several serverless APIs each time.
+* Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh, though to be fair, that's also not needed with serverless offerings.
+* Compared to a traditional public cloud provider, we didn't have to punch holes through firewalls and security groups to get isolated regions to talk to each other. 
 
 While we didn't run into them, let's keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
 
