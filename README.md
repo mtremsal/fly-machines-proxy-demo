@@ -11,15 +11,15 @@ There's a class of use cases that share similar requirements despite looking qui
 
 In all cases:
 
-1. **Low-latency** for users anywhere in the world is essential to compelling user experience, implying a deployment across tens of regions. 
+1. **Low-latency** for users anywhere in the world is essential to a compelling user experience, implying a deployment across tens of regions. 
 2. **Performant and scalable** compute is needed to process a high volume of concurrent inputs.
 3. The service requires **strong consistency** to resolve inputs into a single source of truth before displaying it back to users.
 
 Historically, these requirements have often resulted in difficult tradeoffs: _global, performant, strongly consistent -- pick 2_.
 
-A potential approach could be to build such a service on top of a CDN's edge offerings. Maybe something like [Cloudflare Workers](https://developers.cloudflare.com/workers/) for globally distributed compute, connections over [WebSockets](https://developers.cloudflare.com/workers/runtime-apis/websockets/) for real-time low-latency communications, and with [Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across parallel executions. In fact, the [release announcement](https://blog.cloudflare.com/introducing-workers-durable-objects/) for durable objects specifically calls these use cases as the intended target for their edge services. 
+A potential approach could be to build such a service on top of a CDN's edge offerings. Maybe something like [Cloudflare Workers](https://developers.cloudflare.com/workers/) for globally distributed compute, connections over [WebSockets](https://developers.cloudflare.com/workers/runtime-apis/websockets/) for real-time low-latency communications, and updating [Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across parallel executions. In fact, the [release announcement](https://blog.cloudflare.com/introducing-workers-durable-objects/) for durable objects specifically calls similar use cases as the intended target for their edge services. 
 
-Still, for an average engineer such as yours truly, this isn't exactly a walk in the park. I have to learn the specific APIs and idiosyncrasies of a given vendor. I can't easily test my code locally because a lot of the complexity comes from the interplay of the various serverless offerings. I'm strongly nudged towards the javascript / typescript / Wasm ecosystem rather than my runtime or framework of choice.
+Still, for an average engineer such as yours truly, this isn't exactly a walk in the park. We have to learn the specific APIs and idiosyncrasies of a given vendor. We can't easily test our code locally because a lot of the complexity comes from the interplay of several serverless offerings. We're strongly nudged towards the javascript / typescript / Wasm ecosystem rather than our runtime or framework of choice.
 
 On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provides an interesting alternative:
 
