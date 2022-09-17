@@ -6,15 +6,18 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
   @messages [
     %Message{
       text:
-        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+        time: Timex.now()
     },
     %Message{
       text:
-        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        time: Timex.now()
     },
     %Message{
       text:
-        "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+        "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        time: Timex.now()
     }
   ]
 
@@ -28,6 +31,17 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
     socket = assign(socket, :messages, get_messages(socket.assigns))
 
     {:ok, socket}
+  end
+
+  def handle_event("update-author", %{"_target" => ["author"], "author" => author}, socket) do
+    {:noreply, assign(socket, :author, author)}
+  end
+
+  def handle_event("post-message", %{"message" => message}, socket) do
+    # text: nil, time: Timex.now(), authorid: nil, author: nil
+    message_struct = %Message{text: message, authorid: socket.assigns.authorid, author: socket.assigns.author, time: Timex.now()}
+    messages = [message_struct | socket.assigns.messages]
+    {:noreply, assign(socket, messages: messages)}
   end
 
   defp get_messages(assigns) do

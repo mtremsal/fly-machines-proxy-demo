@@ -1,8 +1,34 @@
-<.live_component module={FlyMachinesDemoWeb.NavComponentLive} id="nav" type="gameserver" instance={@instance}/>
+<.live_component module={FlyMachinesDemoWeb.NavComponentLive} id="nav" type="gameserver" instance={@instance} />
 <div class="py-10">
   <header>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <h1 class="text-3xl font-bold leading-tight tracking-tight text-gray-900">Chat: <%= @instance %></h1>
+      <h1 class="text-3xl font-bold leading-tight tracking-tight text-gray-900">Chat</h1>
+
+      <div class="mt-6 grid grid-cols-12 gap-y-6 gap-x-4">
+        <div class=" mt-1 col-span-12 sm:col-span-9">
+          <form phx-submit="post-message">
+            <input type="text" name="message" id="message"
+              class="block w-full rounded-md border-gray-300 pr-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder="write here">
+          </form>
+        </div>
+
+        <div class="relative mt-1 rounded-md shadow-sm col-span-12 sm:col-span-3">
+          <form phx-change="update-author">
+            <input type="text" name="author" id="author"
+              class="block w-full rounded-md border-gray-300 pr-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder={@author}>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </div>
   </header>
   <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
