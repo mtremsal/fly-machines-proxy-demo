@@ -17,7 +17,7 @@ defmodule FlyMachinesDemoWeb.Router do
   scope "/", FlyMachinesDemoWeb do
     pipe_through :browser
 
-    get "/", PageController, :index
+    live "/", LobbyLive
     live "/gameserver/:instance", GameServerLive
   end
 
