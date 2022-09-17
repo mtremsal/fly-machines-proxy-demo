@@ -2,10 +2,8 @@
 <div class="py-10">
   <header>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <h1 class="text-3xl font-bold leading-tight tracking-tight text-gray-900">Chat</h1>
-
-      <div class="mt-6 grid grid-cols-12 gap-y-6 gap-x-4">
-        <div class=" mt-1 col-span-12 sm:col-span-9">
+      <div class="grid grid-cols-12 gap-y-2 gap-x-2">
+        <div class="mt-2 col-span-12 sm:col-span-9">
           <form phx-submit="post-message">
             <input type="text" name="message" id="message"
               class="block w-full rounded-md border-gray-300 pr-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
@@ -13,7 +11,7 @@
           </form>
         </div>
 
-        <div class="relative mt-1 rounded-md shadow-sm col-span-12 sm:col-span-3">
+        <div class="relative mt-2 rounded-md shadow-sm col-span-12 sm:col-span-3">
           <form phx-change="update-author">
             <input type="text" name="author" id="author"
               class="block w-full rounded-md border-gray-300 pr-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
@@ -32,16 +30,16 @@
     </div>
   </header>
   <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-    <div class="px-4 py-8 sm:px-0">
-      <div class="h-full rounded-lg border-4 border-gray-200">
-        <div class="relative block h-full w-full p-12 text-center">
+    <div class="px-2 py-2 sm:px-0">
+      <div class="h-full w-full rounded-lg border-4 border-gray-200">
+        <div class="relative block p-4 text-center">
 
           <div class="flow-root">
-            <ul role="list" class="-mb-3">
+            <ul role="list">
 
               <%= for message <- @messages do %>
               <li>
-                <div class="relative pb-3">
+                <div class="relative pb-1">
                   <div class="relative flex space-x-3">
                     <div class="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                       <div class="whitespace-normal text-left">
