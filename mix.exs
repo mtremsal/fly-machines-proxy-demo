@@ -47,7 +47,10 @@ defmodule FlyMachinesDemo.MixProject do
       {:gettext, "~> 0.18"},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
-      {:tailwind, "~> 0.1", runtime: Mix.env() == :dev}
+      {:tailwind, "~> 0.1", runtime: Mix.env() == :dev},
+      {:uuid, "~> 1.1"},
+      {:mnemonic_slugs, "~> 0.0.3"},
+      {:timex, "~> 3.7"}
     ]
   end
 
