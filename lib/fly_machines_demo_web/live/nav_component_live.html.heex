@@ -7,13 +7,10 @@
                     <img class="hidden h-8 w-auto lg:block" src="/images/fly_400x400.jpg" alt="Fly Machines Demo">
                 </div>
                 <div class="hidden sm:-my-px sm:ml-6 sm:flex sm:space-x-8">
-                    <!-- Current: "border-indigo-500 text-gray-900", Default: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" -->
-                    <%# <a href="/"
-                class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                aria-current="page">Lobby</a> %>
-
+                    <%= if @type == "lobby" do %>
                     <a href="/"
-                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Lobby</a>
+                        class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                        aria-current="page">Lobby</a>
 
                     <a href="/gameserver/instance-a"
                         class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Server
@@ -26,6 +23,16 @@
                     <a href="/gameserver/instance-c"
                         class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Server
                         C</a>
+
+                    <% else %>
+                    <a href="/"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Return
+                        to Lobby</a>
+
+                    <a href={"/gameserver/#{@instance}"}
+                        class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"><%= @instance %></a>
+
+                    <% end %>
                 </div>
             </div>
             <div class="hidden sm:ml-6 sm:flex sm:items-center">
@@ -73,13 +80,11 @@
     <!-- Mobile menu, show/hide based on menu state. -->
     <div class="sm:hidden" id="mobile-menu">
         <div class="space-y-1 pt-2 pb-3">
-            <!-- Current: "bg-indigo-50 border-indigo-500 text-indigo-700", Default: "border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800" -->
-            <%# <a href="#"
-            class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
-            aria-current="page">Lobby</a> %>
 
-            <a href="#"
-                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Lobby</a>
+            <%= if @type == "lobby" do %>
+            <a href="/"
+                class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
+                aria-current="page">Lobby</a>
 
             <a href="/gameserver/instance-a"
                 class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Server
@@ -92,6 +97,18 @@
             <a href="/gameserver/instance-c"
                 class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Server
                 C</a>
+
+            <% else %>
+
+            <a href="/"
+                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Return
+                to Lobby</a>
+
+            <a href={"/gameserver/#{@instance}"}
+                class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
+                aria-current="page"><%= @instance %></a>
+
+            <% end %>
         </div>
         <div class="border-t border-gray-200 pt-4 pb-3">
             <div class="flex items-center px-4">
