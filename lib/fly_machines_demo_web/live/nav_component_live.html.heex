@@ -12,17 +12,12 @@
                         class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                         aria-current="page">Lobby</a>
 
-                    <a href="/gameserver/instance-a"
-                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Server
-                        A</a>
-
-                    <a href="/gameserver/instance-b"
-                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Server
-                        B</a>
-
-                    <a href="/gameserver/instance-c"
-                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Server
-                        C</a>
+                    <%= for instance <- @instances do %>
+                    <a href={"/gameserver/#{instance}"}
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            <%= instance %>
+                        </a>
+                    <% end %>
 
                     <% else %>
                     <a href="/"
@@ -86,17 +81,12 @@
                 class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
                 aria-current="page">Lobby</a>
 
-            <a href="/gameserver/instance-a"
-                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Server
-                A</a>
-
-            <a href="/gameserver/instance-b"
-                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Server
-                B</a>
-
-            <a href="/gameserver/instance-c"
-                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">Server
-                C</a>
+            <%= for instance <- @instances do %>
+            <a href={"/gameserver/#{instance}"}
+                class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    <%= instance %>
+                </a>
+            <% end %>
 
             <% else %>
 
