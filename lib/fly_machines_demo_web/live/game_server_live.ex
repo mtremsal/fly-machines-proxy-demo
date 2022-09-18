@@ -7,19 +7,9 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
 
   @messages [
     %Message{
-      text:
-        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
-      time: Timex.now()
-    },
-    %Message{
-      text:
-        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
-      time: Timex.now()
-    },
-    %Message{
-      text:
-        "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-      time: Timex.now()
+      text: "Welcome to the chat!",
+      time: Timex.now(),
+      author: "admin"
     }
   ]
 
@@ -69,14 +59,7 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
       ),
       do: {:noreply, assign(socket, messages: post_message(socket.assigns, message_struct))}
 
-  defp get_messages(assigns) do
-    @messages
-    |> Enum.map(fn message ->
-      message
-      |> Map.put(:author, assigns.author)
-      |> Map.put(:authorid, assigns.authorid)
-    end)
-  end
+  defp get_messages(_assigns), do: @messages
 
   defp format_own_message(assigns, message) do
     %Message{
