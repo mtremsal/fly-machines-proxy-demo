@@ -46,7 +46,8 @@
                         <p class="text-sm text-gray-900"> <%= message.text %> </p>
                       </div>
                       <div class="whitespace-nowrap text-right text-sm text-gray-500">
-                        <p class="text-sm text-gray-500"> <%= message.author %>
+                        <p class={"text-sm #{if message.authorid==@authorid do "text-blue-500" else "text-gray-500" end
+                          }"}> <%= message.author %>
                           <time class="font-light"><%= message.time |> Timex.from_now %></time></p>
                       </div>
                     </div>
