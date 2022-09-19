@@ -5,14 +5,6 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
 
   require Logger
 
-  @messages [
-    %Message{
-      text: "Welcome to the chat!",
-      time: Timex.now(),
-      author: "admin"
-    }
-  ]
-
   def mount(%{"instance" => instance}, _session, socket) do
     topic = "gameserver:#{instance}"
 
@@ -22,8 +14,7 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
       |> assign(:topic, topic)
       |> assign(:authorid, UUID.uuid4())
       |> assign(:author, MnemonicSlugs.generate_slug())
-
-    socket = assign(socket, :messages, get_messages(socket.assigns))
+      |> assign(:messages, get_welcome_messages())
 
     if connected?(socket), do: FlyMachinesDemoWeb.Endpoint.subscribe(topic)
 
@@ -43,15 +34,8 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
       message_struct
     )
 
-    {:noreply, assign(socket, messages: post_message(socket.assigns, message_struct))}
+    {:noreply, socket}
   end
-
-  def handle_info(
-        %{event: "broadcast-message", payload: %Message{authorid: authorid}},
-        socket
-      )
-      when authorid == socket.assigns.authorid,
-      do: {:noreply, socket}
 
   def handle_info(
         %{event: "broadcast-message", payload: %Message{} = message_struct},
@@ -59,7 +43,15 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
       ),
       do: {:noreply, assign(socket, messages: post_message(socket.assigns, message_struct))}
 
-  defp get_messages(_assigns), do: @messages
+  defp get_welcome_messages() do
+    [
+      %Message{
+        text: "Welcome to the chat!",
+        time: Timex.now(),
+        author: "admin"
+      }
+    ]
+  end
 
   defp format_own_message(assigns, message) do
     %Message{
