@@ -5,37 +5,53 @@ defmodule FlyMachinesDemoWeb.Plugs.FlyReplayHeader do
 
   def init(opts), do: opts
 
-  # TODO start comparing the target and actual instance instead of relying on the headers
+  # Don't update requests for static assets
+  # def call(%Conn{path_info: ["assets" | _path_info_tail]} = conn, _opts), do: conn
+  # def call(%Conn{path_info: ["images" | _path_info_tail]} = conn, _opts), do: conn
+
+  # Don't update requests for dev-only live_reload
+  # def call(%Conn{path_info: ["phoenix", "live_reload", "frame"]} = conn, _opts), do: conn
+
+  # Replay requests to /gameserver
   def call(%Conn{path_info: ["gameserver" | path_info_tail]} = conn, _opts) do
-    target_instance = hd(path_info_tail)
+    region = hd(path_info_tail)
+    replay(conn, region)
+  end
 
-    already_replayed? =
-      conn.req_headers
-      |> Enum.map(fn
-        {"fly-replay-src", _info} -> true
-        _header -> false
-      end)
-      |> Enum.any?()
+  # Analyze all requests that aren't either static assets or /gameserver
+  def call(%Conn{} = conn, _opts) do
+    # Logger.info("This conn bypassed FlyMachinesDemoWeb.Plugs.FlyReplayHeader.")
 
-    if already_replayed? do
-      Logger.info("This conn reached this instance after being replayed by the proxy.")
-      Logger.info(inspect(conn))
+    conn
+    # |> analyze_conn()
+  end
+
+  defp replay(%Conn{} = conn, region) do
+    # Is already replayed by proxy?
+    if [] != Conn.get_resp_header(conn, "fly-replay") do
+      Logger.info("This conn reaches this instance after being replayed by the proxy.")
+
       conn
+      |> analyze_conn()
     else
-      Logger.info("This conn will ask the proxy to replay the request elsewhere.")
-      resp_headers = [{"fly-replay", "region=#{target_instance}"} | conn.resp_headers]
+      Logger.info("This conn asks the proxy to replay the request elsewhere.")
 
-      conn =
-        conn
-        |> Map.put(:resp_headers, resp_headers)
-        # |> Conn.put_status(:not_found)
-        # |> Phoenix.Controller.render(FlyMachinesDemoWeb.ErrorView, :"404")
-        # |> Conn.halt()
-
-      Logger.info(inspect(conn))
       conn
+      |> Conn.put_resp_header("fly-replay", "region=#{region}")
+      # |> Conn.put_session(:region, region)
+      |> analyze_conn()
+
+      # |> Conn.put_status(:not_found)
+      # |> Phoenix.Controller.render(FlyMachinesDemoWeb.ErrorView, :"409")
+      # |> Conn.halt()
     end
   end
 
-  def call(%Conn{} = conn, _opts), do: conn
+  defp analyze_conn(%Conn{} = conn) do
+    Logger.info("#{inspect(conn.scheme)} #{inspect(conn.method)} #{inspect(conn.path_info)}")
+    Logger.info("req_headers:   #{inspect(conn.req_headers)}")
+    Logger.info("assigns:       #{inspect(conn.assigns)}")
+    Logger.info("resp_headers:  #{inspect(conn.resp_headers)}")
+    conn
+  end
 end

@@ -8,6 +8,8 @@ defmodule FlyMachinesDemoWeb.Router do
     plug :put_root_layout, {FlyMachinesDemoWeb.LayoutView, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+
+    # Custom Plug to re-route requests via the Fly proxy
     plug FlyMachinesDemoWeb.Plugs.FlyReplayHeader
   end
 
