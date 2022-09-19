@@ -34,8 +34,17 @@ defmodule FlyMachinesDemoWeb.GameServerLive do
       message_struct
     )
 
-    {:noreply, socket}
+    {:noreply, assign(socket, messages: post_message(socket.assigns, message_struct))}
   end
+
+  # Messages posted by the user are added to messages immediately for a better experience
+  # In turn, they don't need to be added when they're broadcast back to the user
+  def handle_info(
+        %{event: "broadcast-message", payload: %Message{authorid: authorid}},
+        socket
+      )
+      when authorid == socket.assigns.authorid,
+      do: {:noreply, socket}
 
   def handle_info(
         %{event: "broadcast-message", payload: %Message{} = message_struct},
