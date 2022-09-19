@@ -8,7 +8,7 @@ defmodule FlyMachinesDemoWeb.Router do
     plug :put_root_layout, {FlyMachinesDemoWeb.LayoutView, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug FlyReplayHeaderPlug
+    # plug FlyReplayHeaderPlug
   end
 
   pipeline :api do
