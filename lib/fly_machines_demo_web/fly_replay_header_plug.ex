@@ -48,10 +48,10 @@ defmodule FlyMachinesDemoWeb.Plugs.FlyReplayHeader do
   end
 
   defp analyze_conn(%Conn{} = conn) do
-    Logger.info("#{inspect(conn.scheme)} #{inspect(conn.method)} #{inspect(conn.path_info)}")
-    Logger.info("req_headers:   #{inspect(conn.req_headers)}")
-    Logger.info("assigns:       #{inspect(conn.assigns)}")
-    Logger.info("resp_headers:  #{inspect(conn.resp_headers)}")
+    Logger.debug("#{inspect(conn.scheme)} #{inspect(conn.method)} #{inspect(conn.path_info)}")
+    Logger.debug("req_headers:   #{inspect(conn.req_headers)}")
+    Logger.debug("assigns:       #{inspect(conn.assigns)}")
+    Logger.debug("resp_headers:  #{inspect(conn.resp_headers)}")
     conn
   end
 end
