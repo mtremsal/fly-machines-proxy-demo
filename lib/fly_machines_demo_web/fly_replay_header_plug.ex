@@ -28,7 +28,7 @@ defmodule FlyMachinesDemoWeb.Plugs.FlyReplayHeader do
 
   defp replay(%Conn{} = conn, region) do
     # Is already replayed by proxy?
-    if [] != Conn.get_resp_header(conn, "fly-replay") do
+    if [] != Conn.get_req_header(conn, "fly-replay-src") do
       Logger.info("This conn reaches this instance after being replayed by the proxy.")
 
       conn
