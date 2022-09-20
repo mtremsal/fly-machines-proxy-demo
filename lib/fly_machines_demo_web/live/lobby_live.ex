@@ -1,7 +1,7 @@
 defmodule FlyMachinesDemoWeb.LobbyLive do
   use FlyMachinesDemoWeb, :live_view
 
-  @instances ["abc-123", "def-456", "ghi-789"]
+  @instances ["nrt", "cdg", "ewr"]
 
   def mount(_params, _session, socket) do
     socket =
