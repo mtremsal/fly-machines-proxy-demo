@@ -10,7 +10,7 @@ defmodule FlyMachinesDemoWeb.Router do
     plug :put_secure_browser_headers
 
     # Custom Plug to re-route requests via the Fly proxy
-    plug FlyMachinesDemoWeb.Plugs.FlyReplayHeader
+    # plug FlyMachinesDemoWeb.Plugs.FlyReplayHeader
   end
 
   pipeline :api do
