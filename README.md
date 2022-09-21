@@ -1,6 +1,8 @@
 # fly-machines-proxy-demo
 A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly Machines and the Fly-Replay Header
 
+[demo](fly-machines-proxy-demo.fly.dev) | [repo](https://github.com/mtremsal/fly-machines-proxy-demo)
+
 ## A Common Problem
 
 There's a class of use cases that share similar requirements despite looking quite different at first glance:
@@ -32,7 +34,7 @@ This all seems a bit too good to be true, so **this project explores how well th
 
 ## Fly-powered Demo
 
-**TODO** Insert link to the live demo and call-to-action
+**Try the demo at:** [fly-machines-proxy-demo.fly.dev](https://fly-machines-proxy-demo.fly.dev)
 
 **TODO** Insert animated gif of the lobby redirecting to an active gameserver where messages flow in
 
@@ -43,28 +45,28 @@ Our solution has two parts:
 * A `lobby` that lists available gameservers in various regions and lets users join them. 
 * A `gameserver` that accepts connections from many concurrent users, each one getting their own websocket to send actions and get updates. 
 
-The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it in two ways: a regular stateless fly app available to the internet serves the lobby route, while a set of 3 fly machines are pre-created (i.e. with fixed instance ids) to act as gameservers. Machines are closed off from the public internet by default; all sessions will initially route to the regular fly app that acts solely as lobby.
+The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it in two ways: a regular stateless fly app available to the internet serves the lobby route, while a set of 3 fly machines are pre-created (i.e. with fixed instance ids) to act as gameservers. ~~Machines are closed off from the public internet by default; all sessions will initially route to the regular fly app that acts solely as lobby.~~ update: gameservers are currently deployed as regular apps, as routing happens per region rather than instance, and therefore fixed instance ids aren't required.
 
 **TODO** Insert simple Excalidraw architecture diagram showing 2 public lobbies and 3 "private" gameservers
 
-We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of frontend code we write to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. It doesn't keep track of the state and IPs of the gameservers; it only knows about their `instance` ids. Each `gameserver` is a LiveView running at `/gameserver/<instance>` where `instance` is the id of the Fly Machine that hosts it.
+We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of frontend code we write to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. ~~It doesn't keep track of the state and IPs of the gameservers; it only knows about their `instance` ids. Each `gameserver` is a LiveView running at `/gameserver/<instance>` where `instance` is the id of the Fly Machine that hosts it.~~ update: routing per region instead, but same principle.
 
 **TODO** Insert simple Excalidraw networking diagram showing requests heading to Fly's edge and being rerouted to the selected instance by Fly's proxy
 
-When a user joins a gameserver from the lobby, they attempt to `GET` the page at `/gameserver/<instance>` and the lobby automatically inserts the "Fly-Replay Header" to seamlessly redirect the connection to that specific instance. We rely on the [`Plug`](https://github.com/elixir-plug/plug) library for consistently adding the header on calls to the `/gameserver/` route.
+When a user joins a gameserver from the lobby, they attempt to `GET` the page at `/gameserver/<instance>` and the lobby automatically inserts the "Fly-Replay Header" to seamlessly redirect the connection to that specific instance. ~~We rely on the [`Plug`](https://github.com/elixir-plug/plug) library for consistently adding the header on calls to the `/gameserver/` route.~~ update: This approach works for regular HTTP calls, but not the websocket mount macro unfortunately. See details in the [elixir forums](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377).
 
 **TODO** Insert a "sequence diagram" showing the user first `GET`ting a regular static page, upgrading to a websocket-powered LiveView, then opening a second WebSocket to connect to a bidirectional Channel to share messages with all users.
 
-Besides loading the page itself, all users connected to a given gameserver open a WebSocket to a [Channel](https://hexdocs.pm/phoenix/channels.html) (the default PubSub mechanism in Phoenix). The Channel lets each user posts their messages as well as receive updates from everyone else in return.
+Besides loading the page itself, all users connected to a given gameserver open a WebSocket to a [Channel](https://hexdocs.pm/phoenix/channels.html) (the default PubSub mechanism in Phoenix). The Channel lets each user posts their messages as well as receive updates from everyone else in return. update: I ended up using the channel that's built into the LiveView (see subscribe and broadcast calls) rather than adding a new one.
 
 ## Findings and Sharp Edges
 
-For the most part, this was surprisingly straightforward:
+~~For the most part, this was surprisingly straightforward:~~ update: using a Plug to reroute websocket calls doesn't currently work. See this [other repo](https://github.com/mtremsal/fly-replay-header-caddy) for an alternative approach using Caddy as a reverse proxy in front of the demo app.
 
 * Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
 * Working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
-* We were able to test our code locally and iterate quickly, without having to push it to several serverless APIs each time.
-* Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh, though to be fair, that's also not needed with serverless offerings.
+* ~~We were able to test our code locally and iterate quickly, without having to push it to several serverless APIs each time.~~ update: except for the networking part, which is unique de Fly
+* ~~Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh, though to be fair, that's also not needed with serverless offerings.~~
 * Compared to a traditional public cloud provider, we didn't have to punch holes through firewalls and security groups to get isolated regions to talk to each other. 
 
 While we didn't run into them, let's keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
