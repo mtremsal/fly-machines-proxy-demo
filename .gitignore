@@ -32,3 +32,5 @@ fly_machines_demo-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# macos files
+.DS_Store
