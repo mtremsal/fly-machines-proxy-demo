@@ -51,15 +51,31 @@ The `gameserver` serializes and synchronizes everyone's inputs and displays the 
 
 We could route traffic to individual instances, but to keep the demo simple, we're deploying 1 instance per region, and routing traffic per region. If we wanted to route traffic to individual instances, we'd need the instance ids to be static, which would also require deploying them as Fly Machines rather than a managed App.
 
-We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of code we write for the frontend and PubSub mechanism, to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. The `gameserver` is a LiveView running at `/gameserver/<region>`. An individual instance doesn't keep track of which other instances are running, only that the app is deployed in 3 specific regions. The little flag shown in the navigation bar visually confirms where a request is served from based on the `FLY_REGION` env variable that each instance has access to.
+We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of code we write for the frontend and PubSub mechanism, to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. The `gameserver` is a LiveView running at `/gameserver/<region>`. An individual instance doesn't keep track of which other instances are running, only that the app is deployed in 3 specific regions. 
+
+The little flag shown in the navigation bar visually confirms where a request is served from based on the `FLY_REGION` env variable that each instance has access to. For now, we're serving all requests from the instance closest to the user, courtesy of Fly's Anycast network.
 
 ![liveview](./docs/assets/20220921_drawing_2.png)
 
 When a user loads a LiveView, in practice it first GETs a static version of the HTML, then it establishes a websocket to open a stateful bidirectional connection that allows fast server-side rendering and dynamic updates. Rather than relying on traditional forms, we tap the websocket to post new messages, change the username, and refresh all messages in real time. We even piggyback on the websocket to subscribe to a shared PubSub topic called `gameserver:<region>`; each user broadcasts their own messages to the topic and receives everyone's messages in return. Phoenix and LiveView buy us quite a bit here: no SPA, no kafka, no refresh mechanism, etc.
 
+Now time, to try and get `gameserver/cdg` to serve from the instance in the CDG region, and so on.
+
 ### Routing requests - the goal
 
-**TODO** how Fly's proxy works, what a websocket is established (just HTTP calls), and the Fly Replay Header
+There are a couple moving pieces to understand how one might go about "dynamically redirecting websockets".
+
+The default behavior of Fly Apps is to route requests to the instance closest to the user. This is done by automatically assigning a single public-facing IPv4 address for the entire app, and when requests come in utilizing BGP Anycast to proxy the request where it has the least travel to do. It's pretty magical, and we definitely want to retain this behavior for serving the lobby (i.e. the `/` route).
+
+Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header, into HTTP calls, we can tell the proxy "while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead". So now, instead of deploying our own proxy or service mesh, and having to keep track of the IP of our app in a bunch of different regions, we can just declaratively say "route this request over there, as if I had never received it in the first place". Pretty cool.
+
+Okay, so this works for regular HTTP calls, but what about websockets? Crucially, establishing a websocket on top of HTTP/1.1 is really just going through a handshake with regular HTTP calls. The client [opens the handshake](https://www.rfc-editor.org/rfc/rfc6455#section-1.3) by embedding the request headers `Upgrade: websocket` and `Connection: Upgrade`, and assuming the server agrees, it responds with a `101 Switching Protocols` response code. Yes, this looks a lot like the [TLS upgrade scheme](https://www.rfc-editor.org/rfc/rfc2817) (RFC2817). 
+
+So, in theory, we can configure Fly's proxy to dynamically route regular requests as well as websockets to any region. It would look something like this:
+
+**TODO** Add networking diagram showing the redirect with the Fly Replay Header for both parts of loading a LiveView
+
+Let's try!
 
 ### Routing requests - within Phoenix
 
