@@ -118,23 +118,53 @@ Unfortunately, this approach doesn't fully work. Blink and you might miss it: th
 
 ![demo2](./docs/assets/20220921_demo_2.gif)
 
-See [this thread](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377) for details. While nearly all steps in our connection plumbing (`Endpoint > Router > Controller`) is made of `Plug`s, mounting the websocket is handled slightly differently. The details are in the docs for [`Phoenix.Ednpoint`](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3) and specifically the `socket` macro. The macro captures the websocket HTTP handshake, and thus doesn't let our custom `Plug` act on it downstream.
+See [this thread](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377) for details. While nearly all steps in our connection plumbing (`Endpoint > Router > Controller`) are made of successive `Plug`s, mounting the websocket is handled slightly differently. The details are in the docs for [`Phoenix.Endpoint`](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3) and specifically the `socket` macro. The macro captures the websocket HTTP handshake, and thus doesn't let our custom `Plug` act on it downstream.
 
 The lesson here is to pick a framework that lets you customize calls within the handshake to insert response headers. Node's `socket.io` should be able to handle this for example. But we're getting a log from Phoenix here, so let's deactivate our custom Plug and try to handle the routing logic outside of Phoenix. Let's partner with Caddy. 
 
-![caddy](./docs/assets/golf-caddy.gif)
+![caddy](./docs/assets/golf_caddy.gif)
 
 ### Routing requests - with Caddy as reverse proxy
 
-See this [other repo](https://github.com/mtremsal/fly-replay-header-caddy) for an alternative approach using Caddy as a reverse proxy in front of the demo app.
+Caddy is a turnkey web server and reverse proxy written in go. It's quite beloved and full-featured, including for its default behavior of [using HTTPS automatically](https://caddyserver.com/docs/automatic-https#automatic-https). Nginx would definitely do the job, but Caddy's configuration file, the well-named `Caddyfile`, tends to be significantly more readable than its Nginx counterpart.
 
-**TODO** Explain how Caddy is setup, how that works well for hardcoded destinations, but how we're missing the "target region" information the HTTP call that starts the websocket hanshake.
+There are a couple interesting gotchas to deploying a reverse proxy on Fly, documented in this [other repo](https://github.com/mtremsal/fly-replay-header-caddy). But by and large, we're just deploying a regular Fly App from a Dockerfile with a simple config. The interesting bits are how to leverage Caddy's named matcher along with the `Map` and `Header` directives to handle the redirection. 
 
-![churchill](./docs/assets/darkest-hour-darkest-hour-gifs.gif)
+```Caddyfile
+:8080 {
+    # Parses the path to assign the variable {target_region} based on the second capture group of the regex
+    map {path}                  {target_region} {
+        ~(.*)/gameserver/(.*)$  "region=${2}"
+        default                 ""
+    }
+
+    # Defines a named matcher that checks that the request is for a gameserver and hasn't been already redirected by the proxy
+    @tobereplayed {
+        path /gameserver/*
+        header !fly-replay-src
+    }
+
+    # Adds a response header to all requests that should be replayed with the target region
+    header @tobereplayed fly-replay {target_region}
+
+    # Proxies everything to the upstream server (i.e. the demo app)
+    reverse_proxy * https://fly-machines-proxy-demo.fly.dev:443
+}
+```
+
+Surely this works, right? Close, but no cigar. 
+
+Caddy's debug logs explain our mistake: we're not redirecting the handshake because it uses a static URI: `/live/websocket`. Unfortunately, simply adding this path to our `@tobereplayed` named matcher won't work, because we don't know where to replay the request. Not only the target region is not in the path, it's not anywhere to be seen in the HTTP request. 
+
+If we hardcode the target instance in the Caddyfile, the full behavior works as expected. Huzzah! But of course, that's not quite as nice as our stated goal. Let's go back to Phoenix and figure out how to provide the target region somewhere in the websocket handshake!
+
+![churchill](./docs/assets/darkest_hour.gif)
 
 ### Routing requests - with Caddy as reverse proxy and websocket params in Phoenix
 
-**TODO** Explain the plan to inject params in the socket or use subdomains to track which region the `/live/websocket` calls are meant to reach.
+We need to track which region the `/live/websocket` calls are meant to reach. There are two ways to achieve this: we can either store the target region in the session and inject it into the socket's [params](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3-path-params),or we can add each region as a subdomain instead of in the path (e.g. `ewr.fly-replay-header-demo.fly.dev/gameserver`).
+
+**TODO** Implement the subdomain routing, which is a common pattern for SaaS products
 
 ## Findings and Sharp Edges
 
