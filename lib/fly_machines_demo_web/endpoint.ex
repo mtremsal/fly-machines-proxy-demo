@@ -10,7 +10,14 @@ defmodule FlyMachinesDemoWeb.Endpoint do
     signing_salt: "yo/BT38E"
   ]
 
-  socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
+  socket "/live", Phoenix.LiveView.Socket,
+    websocket: [
+      connect_info: [session: @session_options],
+      check_origin: [
+        "https://fly-machines-proxy-demo.fly.dev",  # Actual Phoenix server
+        "https://fly-replay-header-demo.fly.dev"   # Upstream Caddy proxy
+      ]
+    ]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
