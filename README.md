@@ -69,13 +69,15 @@ The default behavior of Fly Apps is to route requests to the instance closest to
 
 Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header, into HTTP calls, we can tell the proxy "while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead". So now, instead of deploying our own proxy or service mesh, and having to keep track of the IP of our app in a bunch of different regions, we can just declaratively say "route this request over there, as if I had never received it in the first place". Pretty cool.
 
-Okay, so this works for regular HTTP calls, but what about websockets? Crucially, establishing a websocket on top of HTTP/1.1 is really just going through a handshake with regular HTTP calls. The client [opens the handshake](https://www.rfc-editor.org/rfc/rfc6455#section-1.3) by embedding the request headers `Upgrade: websocket` and `Connection: Upgrade`, and assuming the server agrees, it responds with a `101 Switching Protocols` response code. Yes, this looks a lot like the [TLS upgrade scheme](https://www.rfc-editor.org/rfc/rfc2817) (RFC2817). 
+We'll want to avoid creating redirection loops. Let's say we inject `fly-replay region=cdg` in all calls to the `/gameserver/cdg` route. The first request reaches EWR (or whatever's closest) and the proxy agrees to replay it to CDG instead. But now we have a call to `/gameserver/cdg` that needs to actually be served by the instance in CDG. How do we insure we don't inject the response header into this call as well and cause a loop? Luckily for us, Fly's proxy adds a request header called `fly-replay-src` into all requests it replays. We just need to ensure we only inject the `fly-replay` response header into calls that don't already have `fly-replay-src` as a request header. (note: with this approach we're still doing a single pointless redirection if the user happens to initially be routed to the intended region because it's closest -- it's a local redirect taking 2ms so we can live with this.)
 
-So, in theory, we can configure Fly's proxy to dynamically route regular requests as well as websockets to any region. It would look something like this:
+Okay, so our neat trick works for regular HTTP calls, but what about websockets? Crucially, establishing a websocket is really just going through a handshake with regular HTTP/1.1 calls. The client [opens the handshake](https://www.rfc-editor.org/rfc/rfc6455#section-1.3) by embedding the request headers `Upgrade: websocket` and `Connection: Upgrade`, and assuming the server agrees, it responds with a `101 Switching Protocols` response code. This looks a lot like the [TLS upgrade scheme](https://www.rfc-editor.org/rfc/rfc2817) (RFC2817). 
 
-**TODO** Add networking diagram showing the redirect with the Fly Replay Header for both parts of loading a LiveView
+So, in theory, we can configure Fly's proxy to dynamically route regular requests as well as websockets to any region. For a LiveView, it would look like this:
 
-Let's try!
+![replay-header](./docs/assets/20220921_drawing_3.png)
+
+Well, let's try to actually implement this, shall we?
 
 ### Routing requests - within Phoenix
 
