@@ -193,6 +193,10 @@ While we didn't run into them because we kept the demo to managed Fly Apps, let'
 
 ## What's next?
 
+### Custom domain
+
+We're currently leaning on Fly's default domain name on the `.dev` TLD. Fly makes it really easy to bring your own [custom domain](https://fly.io/docs/app-guides/custom-domains-with-fly/) and generating a certificate for it. We'd need to change one line in Phoenix's config to teach it about the new domain. Easy as pie!
+
 ### Higher throughput
 
 The demo currently showcases a simple chat for the real-time collaboration use case. In particular, the chat use case is stateless: while there's a shared PubSub topic for all connected users, each LiveView is in charge of displaying new messages that it receives, and only starts receiving messages after joining. A quick improvement would be to have a stateful server that caches the last n messages received so that new users can catch up on the conversation. A more involved upgrade would be to switch to a real-time graphics editor or a multiplayer mini-game that would synchronize hundreds of updates per second for each user.
