@@ -38,7 +38,7 @@ This all seems a bit too good to be true, so **this project explores how well th
 
 ### Building a demo app
 
-![demo](./docs/assets/20220921_demo_1.gif)
+![demo1](./docs/assets/20220921_demo_1.gif)
 
 Our solution has two parts: 
 
@@ -67,7 +67,7 @@ There are a couple moving pieces to understand how one might go about "dynamical
 
 The default behavior of Fly Apps is to route requests to the instance closest to the user. This is done by automatically assigning a single public-facing IPv4 address for the entire app, and when requests come in utilizing BGP Anycast to proxy the request where it has the least travel to do. It's pretty magical, and we definitely want to retain this behavior for serving the lobby (i.e. the `/` route).
 
-Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header, into HTTP calls, we can tell the proxy "while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead". So now, instead of deploying our own proxy or service mesh, and having to keep track of the IP of our app in a bunch of different regions, we can just declaratively say "route this request over there, as if I had never received it in the first place". Pretty cool.
+Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header into HTTP calls we can tell the proxy _"while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead"_. So now, instead of deploying our own proxy or service mesh, and having to keep track of the IPs of our instances in a bunch of different regions, we can just declaratively say _"route this request over there, as if I had never received it in the first place"_. Pretty cool.
 
 We'll want to avoid creating redirection loops. Let's say we inject `fly-replay region=cdg` in all calls to the `/gameserver/cdg` route. The first request reaches EWR (or whatever's closest) and the proxy agrees to replay it to CDG instead. But now we have a call to `/gameserver/cdg` that needs to actually be served by the instance in CDG. How do we insure we don't inject the response header into this call as well and cause a loop? Luckily for us, Fly's proxy adds a request header called `fly-replay-src` into all requests it replays. We just need to ensure we only inject the `fly-replay` response header into calls that don't already have `fly-replay-src` as a request header. (note: with this approach we're still doing a single pointless redirection if the user happens to initially be routed to the intended region because it's closest -- it's a local redirect taking 2ms so we can live with this.)
 
@@ -81,13 +81,48 @@ Well, let's try to actually implement this, shall we?
 
 ### Routing requests - within Phoenix
 
-Phoenix and its ecosystem rely on a library called `Plug` to model and modify connections. 
+Phoenix and its ecosystem rely on a library called `Plug` to model and modify connections. Plugs form "pipelines" that take successive actions on connections as they flow from the application's overall `Endpoint` to a `Router` and from there to a `Controller` or `LiveView`.
 
-When a user joins a gameserver from the lobby, they attempt to `GET` the page at `/gameserver/<instance>` and the lobby automatically inserts the "Fly-Replay Header" to seamlessly redirect the connection to that specific instance. ~~We rely on the [`Plug`](https://github.com/elixir-plug/plug) library for consistently adding the header on calls to the `/gameserver/` route.~~ update: This approach works for regular HTTP calls, but not the websocket mount macro unfortunately. See details in the [elixir forums](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377).
+Here's our custom `Plug`:
 
-**TODO** Insert a "sequence diagram" showing the user first `GET`ting a regular static page, upgrading to a websocket-powered LiveView, then opening a second WebSocket to connect to a bidirectional Channel to share messages with all users.
+```elixir
+defmodule FlyMachinesDemoWeb.Plugs.FlyReplayHeader do
+  alias Plug.Conn
 
-Besides loading the page itself, all users connected to a given gameserver open a WebSocket to a [Channel](https://hexdocs.pm/phoenix/channels.html) (the default PubSub mechanism in Phoenix). The Channel lets each user posts their messages as well as receive updates from everyone else in return. update: we ended up using the channel that's built into the LiveView (see subscribe and broadcast calls) rather than adding a new one.
+  # The init function helps define compile-time options that define the behavior of the Plug.
+  # Here we don't need to do anything, so we just return options
+  def init(opts), do: opts
+
+  # We pattern-match requests based on their path.
+  # If they're directed at the /gameserver/<region> route, we consider replaying them elsewhere.
+  def call(%Conn{path_info: ["gameserver" | path_info_tail]} = conn, _opts) do
+    # Get the region from the second part of the path
+    # We could do this with pattern-matching but it's not terribly easy to read.
+    region = hd(path_info_tail) 
+    
+    # Is already replayed by proxy? If so, don't replay to avoid loops.
+    # Otherwise, insert the "fly-replay" response header.
+    if [] != Conn.get_req_header(conn, "fly-replay-src") do
+      conn
+    else
+      Conn.put_resp_header(conn, "fly-replay", "region=#{region}")
+    end
+  end
+
+  # Let all other requests flow through the Plug unchanged.
+  def call(%Conn{} = conn, _opts), do: conn
+end
+```
+
+Unfortunately, this approach doesn't fully work. Blink and you might miss it: the flag turns to NRT (🇯🇵) briefly then back to EWR (🇺🇸). While the initial static call gets redirected to the NRT region as expected, the LiveView's websocket handshake doesn't. Why is that?
+
+![demo2](./docs/assets/20220921_demo_2.gif)
+
+See [this thread](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377) for details. While nearly all steps in our connection plumbing (`Endpoint > Router > Controller`) is made of `Plug`s, mounting the websocket is handled slightly differently. The details are in the docs for [`Phoenix.Ednpoint`](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3) and specifically the `socket` macro. The macro captures the websocket HTTP handshake, and thus doesn't let our custom `Plug` act on it downstream.
+
+The lesson here is to pick a framework that lets you customize calls within the handshake to insert response headers. Node's `socket.io` should be able to handle this for example. But we're getting a log from Phoenix here, so let's deactivate our custom Plug and try to handle the routing logic outside of Phoenix. Let's partner with Caddy. 
+
+![caddy](./docs/assets/golf-caddy.gif)
 
 ### Routing requests - with Caddy as reverse proxy
 
@@ -95,9 +130,9 @@ See this [other repo](https://github.com/mtremsal/fly-replay-header-caddy) for a
 
 **TODO** Explain how Caddy is setup, how that works well for hardcoded destinations, but how we're missing the "target region" information the HTTP call that starts the websocket hanshake.
 
-### Routing requests - with Caddy as reverse proxy and websocket params in Phoenix
-
 ![churchill](./docs/assets/darkest-hour-darkest-hour-gifs.gif)
+
+### Routing requests - with Caddy as reverse proxy and websocket params in Phoenix
 
 **TODO** Explain the plan to inject params in the socket or use subdomains to track which region the `/live/websocket` calls are meant to reach.
 
