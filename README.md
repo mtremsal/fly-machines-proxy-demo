@@ -3,7 +3,7 @@ A demo of a globally distributed platform of low-latency, high-volume gameserver
 
 [demo](https://fly-machines-proxy-demo.fly.dev) | [repo](https://github.com/mtremsal/fly-machines-proxy-demo)
 
-## A Common Problem
+## A common problem
 
 There's a class of use cases that share similar requirements despite looking quite different at first glance:
 
@@ -13,13 +13,13 @@ There's a class of use cases that share similar requirements despite looking qui
 
 In all cases:
 
-1. **Low-latency** for users anywhere in the world is essential to a compelling user experience, implying a deployment across tens of regions. 
+1. **Low-latency** is essential to a compelling user experience, implying a deployment across tens of regions globally. 
 2. **Performant and scalable** compute is needed to process a high volume of concurrent inputs.
 3. The service requires **strong consistency** to resolve inputs into a single source of truth before displaying it back to users.
 
 Historically, these requirements have often resulted in difficult tradeoffs: _global, performant, strongly consistent -- pick 2_.
 
-A potential approach could be to build such a service on top of a CDN's edge offerings. Maybe something like [Cloudflare Workers](https://developers.cloudflare.com/workers/) for globally distributed compute, connections over [WebSockets](https://developers.cloudflare.com/workers/runtime-apis/websockets/) for real-time low-latency communications, and updating [Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across parallel executions. In fact, the [release announcement](https://blog.cloudflare.com/introducing-workers-durable-objects/) for durable objects specifically calls similar use cases as their intended target.
+A potential approach could be to build such a service on top of a CDN's edge offerings. Maybe something like [Cloudflare Workers](https://developers.cloudflare.com/workers/) for globally distributed compute, connections over [WebSockets](https://developers.cloudflare.com/workers/runtime-apis/websockets/) for real-time low-latency communications, and updating [Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects) to sync state across parallel executions. In fact, the [release announcement](https://blog.cloudflare.com/introducing-workers-durable-objects/) for durable objects specifically mentions similar use cases as their intended target.
 
 Still, for an average engineer such as yours truly, this isn't exactly a walk in the park. We have to learn the specific APIs and idiosyncrasies of a given vendor. We can't easily test our code locally because a lot of the complexity comes from the interplay of various serverless offerings. We're strongly nudged towards the javascript / typescript / Wasm ecosystem rather than our runtime or framework of choice.
 
@@ -45,11 +45,11 @@ Our solution has two parts:
 * A `lobby` that lists available gameservers in various regions and lets users join them. 
 * A `gameserver` that accepts connections from many concurrent users. Each `gameserver` is in its own region, and only users connected to the same `gameserver` can chat together.
 
-The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it as a regular Fly App to n regions. Here, we've deployed to EWR (🇺🇸), NRT (🇯🇵), and CDG (🇫🇷). 
+The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it as a regular Fly App to n regions. Here, we've deployed to EWR 🇺🇸, NRT 🇯🇵, and CDG 🇫🇷. 
 
 ![regions](./docs/assets/20220921_drawing_1.png)
 
-We could route traffic to individual instances, but to keep the demo simple, we're deploying 1 instance per region, and routing traffic per region. If we wanted to route traffic to individual instances, we'd need the instance ids to be static, which would also require deploying them as Fly Machines rather than a managed App.
+We could route traffic to individual instances, but to keep the demo simple, we're deploying 1 instance per region, and routing traffic per region. If we wanted to route traffic to individual instances, we'd need the instance ids to be static, which would also require deploying them as Fly Machines rather than as a managed App.
 
 We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of code we write for the frontend and PubSub mechanism, to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. The `gameserver` is a LiveView running at `/gameserver/<region>`. An individual instance doesn't keep track of which other instances are running, only that the app is deployed in 3 specific regions. 
 
@@ -69,7 +69,7 @@ The default behavior of Fly Apps is to route requests to the instance closest to
 
 Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header into HTTP calls we can tell the proxy _"while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead"_. So now, instead of deploying our own proxy or service mesh, and having to keep track of the IPs of our instances in a bunch of different regions, we can just declaratively say _"route this request over there, as if I had never received it in the first place"_. Pretty cool.
 
-We'll want to avoid creating redirection loops. Let's say we inject `fly-replay region=cdg` in all calls to the `/gameserver/cdg` route. The first request reaches EWR (or whatever's closest) and the proxy agrees to replay it to CDG instead. But now we have a call to `/gameserver/cdg` that needs to actually be served by the instance in CDG. How do we insure we don't inject the response header into this call as well and cause a loop? Luckily for us, Fly's proxy adds a request header called `fly-replay-src` into all requests it replays. We just need to ensure we only inject the `fly-replay` response header into calls that don't already have `fly-replay-src` as a request header. (note: with this approach we're still doing a single pointless redirection if the user happens to initially be routed to the intended region because it's closest -- it's a local redirect taking 2ms so we can live with this.)
+We'll want to avoid creating redirection loops. Let's say we inject `fly-replay region=cdg` in all calls to the `/gameserver/cdg` route. The first request reaches EWR (or whatever's closest) and the proxy agrees to replay it to CDG instead. But now we have a call to `/gameserver/cdg` that needs to actually be served by the instance in CDG, and not replayed. How do we insure we don't inject the response header into this call as well and cause a loop? Luckily for us, Fly's proxy adds a request header called `fly-replay-src` into all requests it replays. We just need to ensure we only inject the `fly-replay` response header into calls that don't already have `fly-replay-src` as a request header. (note: with this approach we're still doing a single pointless redirection if the user happens to initially be routed to the intended region because it's closest -- it's a local redirect taking 2ms so we can live with this.)
 
 Okay, so our neat trick works for regular HTTP calls, but what about websockets? Crucially, establishing a websocket is really just going through a handshake with regular HTTP/1.1 calls. The client [opens the handshake](https://www.rfc-editor.org/rfc/rfc6455#section-1.3) by embedding the request headers `Upgrade: websocket` and `Connection: Upgrade`, and assuming the server agrees, it responds with a `101 Switching Protocols` response code. This looks a lot like the [TLS upgrade scheme](https://www.rfc-editor.org/rfc/rfc2817) (RFC2817). 
 
@@ -81,7 +81,7 @@ Well, let's try to actually implement this, shall we?
 
 ### Routing requests - within Phoenix
 
-Phoenix and its ecosystem rely on a library called `Plug` to model and modify connections. Plugs form "pipelines" that take successive actions on connections as they flow from the application's overall `Endpoint` to a `Router` and from there to a `Controller` or `LiveView`.
+Phoenix and its ecosystem rely on a library called [`Plug`](https://hexdocs.pm/phoenix/plug.html) to model and modify connections. Plugs form "pipelines" that take successive actions on connections as they flow from the application's overall `Endpoint` to a `Router` and from there to a `Controller` or `LiveView`.
 
 Here's our custom `Plug`:
 
@@ -114,13 +114,13 @@ defmodule FlyMachinesDemoWeb.Plugs.FlyReplayHeader do
 end
 ```
 
-Unfortunately, this approach doesn't fully work. Blink and you might miss it: the flag turns to NRT (🇯🇵) briefly then back to EWR (🇺🇸). While the initial static call gets redirected to the NRT region as expected, the LiveView's websocket handshake doesn't. Why is that?
+Unfortunately, this approach doesn't fully work. Blink and you might miss it: the flag turns to NRT 🇯🇵 briefly then back to EWR 🇺🇸. While the initial static call gets redirected to the NRT region as expected, the LiveView's websocket handshake doesn't. Why is that?
 
 ![demo2](./docs/assets/20220921_demo_2.gif)
 
 See [this thread](https://elixirforum.com/t/how-to-intercept-http-messages-generated-by-endpoints-socket-macro-with-a-plug/50377) for details. While nearly all steps in our connection plumbing (`Endpoint > Router > Controller`) are made of successive `Plug`s, mounting the websocket is handled slightly differently. The details are in the docs for [`Phoenix.Endpoint`](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3) and specifically the `socket` macro. The macro captures the websocket HTTP handshake, and thus doesn't let our custom `Plug` act on it downstream.
 
-The lesson here is to pick a framework that lets you customize calls within the handshake to insert response headers. Node's `socket.io` should be able to handle this for example. But we're getting a log from Phoenix here, so let's deactivate our custom Plug and try to handle the routing logic outside of Phoenix. Let's partner with Caddy. 
+The lesson here is to pick a framework that lets you customize calls within the handshake to insert response headers. Node's `socket.io` should be able to handle this for example. But we're getting a lot of free features from Phoenix here, so let's deactivate our custom Plug and try to handle the routing logic outside the app. Let's partner with Caddy. 
 
 ![caddy](./docs/assets/golf_caddy.gif)
 
@@ -154,9 +154,9 @@ There are a couple interesting gotchas to deploying a reverse proxy on Fly, docu
 
 Surely this works, right? Close, but no cigar. 
 
-Caddy's debug logs explain our mistake: we're not redirecting the handshake because it uses a static URI: `/live/websocket`. Unfortunately, simply adding this path to our `@tobereplayed` named matcher won't work, because we don't know where to replay the request. Not only the target region is not in the path, it's not anywhere to be seen in the HTTP request. 
+Caddy's debug logs explain our mistake: we're not redirecting the handshake because it uses a static URI: `/live/websocket`. Unfortunately, simply adding this path to our `@tobereplayed` named matcher won't work, because we don't know _where_ to replay the request. Not only the target region is not in the path, it's not anywhere to be seen in the HTTP request. 
 
-If we hardcode the target instance in the Caddyfile, the full behavior works as expected. Huzzah! But of course, that's not quite as nice as our stated goal. Let's go back to Phoenix and figure out how to provide the target region somewhere in the websocket handshake!
+If we hardcode the target instance in the Caddyfile, the full behavior works as expected. Huzzah! But of course, that's a single instance, and not quite our stated goal. Let's go back to Phoenix and figure out how to provide the target region somewhere in the websocket handshake!
 
 ![churchill](./docs/assets/darkest_hour.gif)
 
@@ -164,33 +164,46 @@ If we hardcode the target instance in the Caddyfile, the full behavior works as 
 
 We need to track which region the `/live/websocket` calls are meant to reach. There are two ways to achieve this: we can either store the target region in the session and inject it into the socket's [params](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3-path-params),or we can add each region as a subdomain instead of in the path (e.g. `ewr.fly-replay-header-demo.fly.dev/gameserver`).
 
-**TODO** Implement the subdomain routing, which is a common pattern for SaaS products
+**TODO** Implement the subdomain routing (a common pattern for SaaS products)
 
-## Findings and Sharp Edges
+## Findings and sharp edges
 
-**TODO** Summarize learnings, both the benefits of the approach, and the sharp edges to keep in mind when architecting for it.
+What have we learned so far? First of all, there's tremendous value in running actual VMs at the edge:
 
-* Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
-* Working with full VMs at the edge provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
-* ~~We were able to test our code locally and iterate quickly, without having to push it to several serverless APIs each time.~~ update: except for the networking part, which is unique de Fly
-* ~~Relying on the Fly-Replay Header removed the need to run our own proxy or a service mesh, though to be fair, that's also not needed with serverless offerings.~~
-* Compared to a traditional public cloud provider, we didn't have to punch holes through firewalls and security groups to get isolated regions to talk to each other. 
+1. Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
+2. Working with full VMs provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
+3. Compared to a traditional public cloud provider, we didn't have to punch holes through firewalls and security groups to get isolated regions to talk to each other. 
+4. We were able to develop and test our app locally, with quick iterations, without having to push it to several serverless APIs each time.
+5. Relying on the Fly-Replay Header could remove the need to run our own proxy or service mesh for global routing.
 
-While we didn't run into them, let's keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
+That being said, we also cut ourselves on some sharp edges:
 
-## What's Next?
+While point 4 above is valuable for iterating quickly on the app, it doesn't apply to the networking layer, which is unique to Fly.io. Here, redeploying changes is part of the development loop. Thankfully, deploys are really fast because: 
 
-### Higher Throughput
+* We usually change a single layer of the container and the others are cached.
+* Builds are remote, executed on a beefy machine.
+* Micro-VMs boot extremely quickly.
 
-The demo currently showcases a simple chat for the real-time collaboration use case. In particular, the chat use case is stateless: while there's a shared Channel for all connected users, each LiveView is in charge of displaying new messages that it receives. A quick improvement would be to have a stateful server that caches the last 100 messages received from the Channel so that new users can catch up on the conversation. A more involved upgrade would be to switch to a real-time graphics editor or a multiplayer mini-game that would synchronize hundreds of updates per second for each user.
+Regarding point 5, we couldn't quite get the Fly Replay Header to work with Phoenix alone. We'll need to take a couple precautions next time: 
 
-### Network Isolation
+* Pick a framework that lets us customize websocket handshake calls, or hand roll raw websockets.
+* Pass the relevant routing logic dynamically in the websocket mounting URL.
+
+While we didn't run into them because we kept the demo to managed Fly Apps, let's also keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
+
+## What's next?
+
+### Higher throughput
+
+The demo currently showcases a simple chat for the real-time collaboration use case. In particular, the chat use case is stateless: while there's a shared PubSub topic for all connected users, each LiveView is in charge of displaying new messages that it receives, and only starts receiving messages after joining. A quick improvement would be to have a stateful server that caches the last n messages received so that new users can catch up on the conversation. A more involved upgrade would be to switch to a real-time graphics editor or a multiplayer mini-game that would synchronize hundreds of updates per second for each user.
+
+### Network isolation
 
 While Machines are private by default, the demo still operates lobbies and gameservers on the same default network shared by the entire Fly organization. This is very convenient, but for a production scenario we'd likely isolate gameservers in their own private network. The guide to [build a Function-as-a-Service platform](https://fly.io/docs/app-guides/functions-with-machines/) touches on this point.
 
-### VM Orchestration
+### VM orchestration
 
-The demo doesn't currently demonstrate how Machines scale to zero and boot fast. In fact, everything that we're currently doing could be achieved with a regular Fly app, without manually provisioning low-level Machines. A simple improvement would be to shut down empty gameservers (without any active websocket connection) after a few seconds. The lobby would list available regions (1 machine per region) rather than instance ids. It would start a gameserver before the first user joins it and cache its instance id locally. Note that the lobby remains stateless: if we attempt to start an already running gameserver, we can just ignore the error, cache its instance id, and move on.
+The demo doesn't currently demonstrate how Machines scale to zero and boot fast. In fact, we're not using Machines, just regular Apps. Switching to Machines would let us shut down empty gameservers (without any active websocket connection) after a few seconds. The lobby would start a gameserver before the first user joins it. Note that the lobby remains stateless: if we attempt to start an already running gameserver, we can just ignore the error and move on. We could take it even further and build per-instance routing within a region to allow dynamically scaling up when some instances are at capacity.
 
 ## References
 
