@@ -1,7 +1,7 @@
 # fly-machines-proxy-demo
 A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly Machines and the Fly-Replay Header
 
-[demo](fly-machines-proxy-demo.fly.dev) | [repo](https://github.com/mtremsal/fly-machines-proxy-demo)
+[demo](https://fly-machines-proxy-demo.fly.dev) | [repo](https://github.com/mtremsal/fly-machines-proxy-demo)
 
 ## A Common Problem
 
