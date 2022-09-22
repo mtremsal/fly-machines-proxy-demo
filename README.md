@@ -1,7 +1,7 @@
 # fly-machines-proxy-demo
 A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly Machines and the Fly-Replay Header
 
-[demo](https://fly-machines-proxy-demo.fly.dev) | [repo](https://github.com/mtremsal/fly-machines-proxy-demo)
+[demo](https://fly-replay-header-demo.fly.dev/) | [phoenix repo](https://github.com/mtremsal/fly-machines-proxy-demo) | [caddy repo](https://github.com/mtremsal/fly-replay-header-caddy)
 
 ## A common problem
 
@@ -34,7 +34,9 @@ This all seems a bit too good to be true, so **this project explores how well th
 
 ## Fly-powered Demo
 
-**Try the demo at:** [fly-machines-proxy-demo.fly.dev](https://fly-machines-proxy-demo.fly.dev)
+**Try the full demo at:** [fly-replay-header-demo.fly.dev](https://fly-replay-header-demo.fly.dev/)
+
+**Try the demo app without network routing at:** [fly-machines-proxy-demo.fly.dev](https://fly-machines-proxy-demo.fly.dev/)
 
 ### Building a demo app
 
@@ -242,7 +244,7 @@ While point 4 above is valuable for iterating quickly on the app, it doesn't app
 Regarding point 5, we couldn't quite get the Fly Replay Header to work with Phoenix alone. We'll need to take a couple precautions next time: 
 
 * Pick a framework that lets us customize websocket handshake calls, or hand roll raw websockets.
-* Pass the relevant routing logic dynamically in the websocket mounting URL.
+* Pass the relevant routing logic as a param to the websocket, ideally in the subdomain or the path.
 
 While we didn't run into them because we kept the demo to managed Fly Apps, let's also keep in mind the limitations listed in the announcement post for [Fly Machines](https://fly.io/blog/fly-machines/#how-fly-machines-will-frustrate-you-the-emotional-cost-of-simplicity), most notably that stopped machines aren't guaranteed to be available again and aren't fully free.
 
