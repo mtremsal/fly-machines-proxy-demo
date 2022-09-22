@@ -1,5 +1,5 @@
 # fly-machines-proxy-demo
-A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly Machines and the Fly-Replay Header
+A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly.io and its proxy
 
 [demo](https://fly-replay-header-demo.fly.dev/) | [phoenix repo](https://github.com/mtremsal/fly-machines-proxy-demo) | [caddy repo](https://github.com/mtremsal/fly-replay-header-caddy)
 
