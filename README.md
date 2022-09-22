@@ -162,9 +162,64 @@ If we hardcode the target instance in the Caddyfile, the full behavior works as 
 
 ### Routing requests - with Caddy as reverse proxy and websocket params in Phoenix
 
-We need to track which region the `/live/websocket` calls are meant to reach. There are two ways to achieve this: we can either store the target region in the session and inject it into the socket's [params](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3-path-params),or we can add each region as a subdomain instead of in the path (e.g. `ewr.fly-replay-header-demo.fly.dev/gameserver`).
+We need to track which region the `/live/websocket` calls are meant to reach. There are several ways to achieve this, such as storing the target region in the session and injecting it into the socket's [params](https://hexdocs.pm/phoenix/Phoenix.Endpoint.html#socket/3-path-params),or adding each region as a subdomain instead of in the path (e.g. `ewr.fly-replay-header-demo.fly.dev/gameserver`). 
 
-**TODO** Implement the subdomain routing (a common pattern for SaaS products)
+In the interest of time, we're going to approach the problem in a jankier way: we'll inject the target region as a param in the query string of the initial HTTP call. Phoenix already does something similar to inject the CSRF token in the `app.js` file. We can expand this approach by passing the path (e.g. `gameserver/cdg`) and the region (e.g. `cdg`) in a similar manner.
+
+```js
+let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+// Pass the path and region as params to the new LiveSocket
+let path = window.location.pathname.toString()
+let re = new RegExp("^/gameserver/(.*)$");
+let region = ""
+if (re.test(path)) {
+    region = path.match(re)[1]
+}
+
+let liveSocket = new LiveSocket("/live", Socket, {params: {
+    _csrf_token: csrfToken, 
+    _region: region,
+    _path: path,
+}})
+```
+
+This isn't as clean and efficient as providing the target region as either a subdomain or in the path, but we can still get Caddy to extract it from the URI:
+
+```Caddyfile
+:8080 {
+    # Parses the path to assign the variable {target_region} based on the second capture group of the regex
+    map     {uri}                                           {target_region} {
+            ~\/gameserver\/(.+)$                            "region=${1}"
+            ~\/live\/websocket\?.*_region=(.+)\&_path.*$    "region=${1}"
+            default                                         ""
+    }
+
+    # Defines a named matcher that checks that the request is for a gameserver and hasn't been already redirected by the proxy
+    @tobereplayed {
+        path /gameserver/*
+        header !fly-replay-src
+    }
+
+    # Defines a named matcher that checks that the request is for a liveview's websocket and hasn't been already redirected by the proxy
+    # The regex in the map ensures the region cannot be null
+    @tobereplayedws {
+        path /live/websocket*
+        header !fly-replay-src
+    }
+
+    # Add a response header to all requests that should be replayed with the target region
+    header @tobereplayed    fly-replay {target_region}
+    header @tobereplayedws  fly-replay {target_region}
+
+    # proxy everything else to the fly-machines-proxy-demo.fly.dev upstream server
+    reverse_proxy * https://fly-machines-proxy-demo.fly.dev:443
+}
+```
+
+We're now seeing successful dynamic redirections for the websocket call tied to gameservers (not for the lobby). At long last, we've achieve our goal!
+
+Or have we? The logs indicate that some rebel requests are still getting served by the origin instance, forcing clients to reconnect to the target. We'll definitely have to troubleshoot this later. For now, let's pause to summarize what we've already learned so far.
 
 ## Findings and sharp edges
 
@@ -209,6 +264,8 @@ While Machines are private by default, the demo still operates lobbies and games
 
 The demo doesn't currently demonstrate how Machines scale to zero and boot fast. In fact, we're not using Machines, just regular Apps. Switching to Machines would let us shut down empty gameservers (without any active websocket connection) after a few seconds. The lobby would start a gameserver before the first user joins it. Note that the lobby remains stateless: if we attempt to start an already running gameserver, we can just ignore the error and move on. We could take it even further and build per-instance routing within a region to allow dynamically scaling up when some instances are at capacity.
 
+More importantly, Machines would help us guarantee that we route to a specific instance (based on its instance id) whereas routing per region can lead to some inconsistencies. For example, with 3 target regions and a scale count of 3, it's not technically guaranteed that each region will get a single instance.
+
 ## References
 
 **[Fly.io docs and guides]** Reference for [Machines](https://fly.io/docs/reference/machines/) and the [Fly-Replay Header](https://fly.io/docs/reference/fly-replay/). Guide for [building a FaaS](https://fly.io/docs/app-guides/functions-with-machines/) on top of machines.
@@ -216,3 +273,5 @@ The demo doesn't currently demonstrate how Machines scale to zero and boot fast.
 **[Cloudflare docs and guides]** Reference for [Workers](https://developers.cloudflare.com/workers/), [websockets](https://developers.cloudflare.com/workers/learning/using-websockets/) and [durable objects](https://developers.cloudflare.com/workers/learning/using-durable-objects/).
 
 **[Relevant demo apps]** [Workers chat demo](https://github.com/cloudflare/workers-chat-demo), "written on Cloudflare Workers utilizing Durable Objects to implement real-time chat with stored history". [Replidraw](https://github.com/rocicorp/replidraw), a demo app for Replicache that simulates "a tiny Figma-like multiplayer graphics editor".
+
+**[Elixir & Phoenix guides]** [Subdomain based SaaS with Phoenix](https://intever.co/blog/subdomain-saas-part-1) (2022), [Routing in Phoenix Umbrella Apps](https://blog.appsignal.com/2019/04/16/elixir-alchemy-routing-phoenix-umbrella-apps.html) (2019), [Subdomains With Phoenix](https://blog.gazler.com/blog/2015/07/18/subdomains-with-phoenix/) (2015)

@@ -15,7 +15,8 @@ defmodule FlyMachinesDemoWeb.Endpoint do
       connect_info: [session: @session_options],
       check_origin: [
         "https://fly-machines-proxy-demo.fly.dev",  # Actual Phoenix server
-        "https://fly-replay-header-demo.fly.dev"   # Upstream Caddy proxy
+        "https://fly-replay-header-demo.fly.dev",   # Upstream Caddy proxy
+        "//localhost"                               # Local testing
       ]
     ]
 

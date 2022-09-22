@@ -26,7 +26,20 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}})
+
+// Pass the path and region as params to the new LiveSocket
+let path = window.location.pathname.toString()
+let re = new RegExp("^/gameserver/(.*)$");
+let region = ""
+if (re.test(path)) {
+    region = path.match(re)[1]
+}
+
+let liveSocket = new LiveSocket("/live", Socket, {params: {
+    _csrf_token: csrfToken, 
+    _region: region,
+    _path: path,
+}})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
