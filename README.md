@@ -1,5 +1,5 @@
-# fly-machines-proxy-demo
-A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly.io and its proxy
+# fly-proxy-demo
+A demo of a globally distributed platform of low-latency, high-volume gameservers built on Fly.io and its built-in proxy
 
 [demo](https://fly-replay-header-demo.fly.dev/) | [phoenix repo](https://github.com/mtremsal/fly-machines-proxy-demo) | [caddy repo](https://github.com/mtremsal/fly-replay-header-caddy)
 
@@ -23,7 +23,7 @@ A potential approach could be to build such a service on top of a CDN's edge off
 
 Still, for an average engineer such as yours truly, this isn't exactly a walk in the park. We have to learn the specific APIs and idiosyncrasies of a given vendor. We can't easily test our code locally because a lot of the complexity comes from the interplay of various serverless offerings. We're strongly nudged towards the javascript / typescript / Wasm ecosystem rather than our runtime or framework of choice.
 
-On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provides an interesting alternative:
+On paper, [Fly.io](https://fly.io/) provides an interesting alternative:
 
 * [Firecracker microVMs](https://fly.io/blog/sandboxing-and-workload-isolation/) provide great workload isolation, quick boot times, and performant compute.
 * [Fly Machines](https://fly.io/docs/reference/machines/) offer an API to manually orchestrate VMs and the ability to scale down to zero.
@@ -32,7 +32,7 @@ On paper, the release of [Fly Machines](https://fly.io/blog/fly-machines/) provi
 
 This all seems a bit too good to be true, so **this project explores how well these claims hold in practice, and where sharp edges remain**.
 
-## Fly-powered Demo
+## Fly-powered demo
 
 **Try the full demo at:** [fly-replay-header-demo.fly.dev](https://fly-replay-header-demo.fly.dev/)
 
@@ -45,13 +45,13 @@ This all seems a bit too good to be true, so **this project explores how well th
 Our solution has two parts: 
 
 * A `lobby` that lists available gameservers in various regions and lets users join them. 
-* A `gameserver` that accepts connections from many concurrent users. Each `gameserver` is in its own region, and only users connected to the same `gameserver` can chat together.
+* A `gameserver` that accepts connections from many concurrent users. Each `gameserver` is in its own region, and only users connected to the same `gameserver` can chat/play/work together.
 
-The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it as a regular Fly App to n regions. Here, we've deployed to EWR 🇺🇸, NRT 🇯🇵, and CDG 🇫🇷. 
+The `gameserver` serializes and synchronizes everyone's inputs and displays the resulting authoritative state back to users in real-time. We share the same codebase for the `lobby` and `webserver` and deploy it as a regular Fly App to any number of regions. Here, we've deployed to EWR 🇺🇸, NRT 🇯🇵, and CDG 🇫🇷. 
 
 ![regions](./docs/assets/20220921_drawing_1.png)
 
-We could route traffic to individual instances, but to keep the demo simple, we're deploying 1 instance per region, and routing traffic per region. If we wanted to route traffic to individual instances, we'd need the instance ids to be static, which would also require deploying them as Fly Machines rather than as a managed App.
+We could route traffic to individual instances, but to keep the demo simple, we're deploying 1 instance per region, and are routing traffic per region. If we wanted to route traffic to individual instances, we'd need the instance ids to be static, which would also require deploying them as Fly Machines rather than as a managed App.
 
 We run the [`Phoenix`](https://github.com/phoenixframework/phoenix) web server because LiveViews (real-time server-rendered pages) let us minimize the amount of code we write for the frontend and PubSub mechanism, to focus on the interesting bits. The `lobby` is a LiveView that lives at `/`. The `gameserver` is a LiveView running at `/gameserver/<region>`. An individual instance doesn't keep track of which other instances are running, only that the app is deployed in 3 specific regions. 
 
@@ -61,15 +61,15 @@ The little flag shown in the navigation bar visually confirms where a request is
 
 When a user loads a LiveView, in practice it first GETs a static version of the HTML, then it establishes a websocket to open a stateful bidirectional connection that allows fast server-side rendering and dynamic updates. Rather than relying on traditional forms, we tap the websocket to post new messages, change the username, and refresh all messages in real time. We even piggyback on the websocket to subscribe to a shared PubSub topic called `gameserver:<region>`; each user broadcasts their own messages to the topic and receives everyone's messages in return. Phoenix and LiveView buy us quite a bit here: no SPA, no kafka, no refresh mechanism, etc.
 
-Now time, to try and get `gameserver/cdg` to serve from the instance in the CDG region, and so on.
+Now time, to try and get `gameserver/cdg` to actually serve from the instance in the CDG region, and so on.
 
 ### Routing requests - the goal
 
 There are a couple moving pieces to understand how one might go about "dynamically redirecting websockets".
 
-The default behavior of Fly Apps is to route requests to the instance closest to the user. This is done by automatically assigning a single public-facing IPv4 address for the entire app, and when requests come in utilizing BGP Anycast to proxy the request where it has the least travel to do. It's pretty magical, and we definitely want to retain this behavior for serving the lobby (i.e. the `/` route).
+The default behavior of Fly Apps is to route requests to the instance closest to the user. This is done by automatically assigning a single public-facing IPv4 address for the entire app and, when requests come in, utilizing BGP Anycast to proxy the request where it has the least travel to do. It's pretty magical, and we definitely want to retain this behavior for serving the lobby (i.e. the `/` route).
 
-Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header into HTTP calls we can tell the proxy _"while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead"_. So now, instead of deploying our own proxy or service mesh, and having to keep track of the IPs of our instances in a bunch of different regions, we can just declaratively say _"route this request over there, as if I had never received it in the first place"_. Pretty cool.
+Each instance also runs a [proxy](https://fly.io/docs/reference/architecture/#fly-networking) that, among other things, takes care of establishing the wireguard-based mesh connections to everything else that runs in your organization, essentially faking a local LAN despite everything being scattered across a bunch of different regions. This proxy is user-configurable to some extent with the [Fly Replay Header](https://fly.io/docs/reference/fly-replay/). By setting the `fly-replay` response header into HTTP calls we can tell the proxy _"while this was delivered to me, I'd like you to replay it to a different region/instance/app/etc. instead"_. So now, instead of deploying our own proxy or service mesh, and having to keep track of the IPs assigned to all our instances across a bunch of different regions, we can just declaratively say _"route this request over there, as if I had never received it in the first place"_. Pretty cool.
 
 We'll want to avoid creating redirection loops. Let's say we inject `fly-replay region=cdg` in all calls to the `/gameserver/cdg` route. The first request reaches EWR (or whatever's closest) and the proxy agrees to replay it to CDG instead. But now we have a call to `/gameserver/cdg` that needs to actually be served by the instance in CDG, and not replayed. How do we insure we don't inject the response header into this call as well and cause a loop? Luckily for us, Fly's proxy adds a request header called `fly-replay-src` into all requests it replays. We just need to ensure we only inject the `fly-replay` response header into calls that don't already have `fly-replay-src` as a request header. (note: with this approach we're still doing a single pointless redirection if the user happens to initially be routed to the intended region because it's closest -- it's a local redirect taking 2ms so we can live with this.)
 
@@ -219,13 +219,13 @@ This isn't as clean and efficient as providing the target region as either a sub
 }
 ```
 
-We're now seeing successful dynamic redirections for the websocket call tied to gameservers (not for the lobby). At long last, we've achieve our goal!
+We're now seeing successful dynamic redirections for the websocket call tied to gameservers (not for the lobby). At long last, we've achieved our goal!
 
-Or have we? The logs indicate that some rebel requests are still getting served by the origin instance, forcing clients to reconnect to the target. We'll definitely have to troubleshoot this later. For now, let's pause to summarize what we've already learned so far.
+Or have we? The logs indicate that some rebel requests are still getting served by the initial instance, forcing clients to reconnect to the target. We'll definitely have to troubleshoot this later. For now, let's pause to summarize what we've already learned so far.
 
 ## Findings and sharp edges
 
-What have we learned so far? First of all, there's tremendous value in running actual VMs at the edge:
+So, what have we learned? First of all, there's tremendous value in running actual VMs at the edge:
 
 1. Getting all users on a single shared VM buys us low-latency and high-volume updates, without having to rely on a quirky serverless storage service.
 2. Working with full VMs provides a lot of flexibility in terms of architecture, such as letting us run whatever runtime and library we're familiar with. 
